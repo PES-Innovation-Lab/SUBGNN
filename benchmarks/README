@@ -1,0 +1,11 @@
+
+README
+
+===============================================================================
+
+- mutag_vf2.py and mutag_vf3.py use the MUTAG dataset from TUDatasets
+
+- isonet_mutag_vf2.py and isonet_mutag_vf3.py use the same dataset as ISONET++
+    - this is the preferred approach
+    - loads the dataset from the pickle files
+    - run : python isonet_mutag_vf2.py > bench_vf2.txt
