@@ -1,7 +1,6 @@
+README
 
-#README
-
-#VF2 and VF3
+VF2 and VF3
 ============
 
 
