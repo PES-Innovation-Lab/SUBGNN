@@ -181,40 +181,53 @@ def make_partitions(dataset, num_parts):
     return part_graphs
 
 
-# Build vector index using FAISS
-index = faiss.IndexFlatL2(16)
+def main():
+
+    args = sys.argv[1:]
+    parition_num = 0
+
+    if len(args) == 1:
+        partition_num = int(args[1])
+    elif len(args) > 1:
+        print("Wrong Usage: python3 cora_pipeline.py <Partition Number>")
+
+    # Build vector index using FAISS
+    index = faiss.IndexFlatL2(16)
+
+    # Make partitions
+    k = 40
+    partition_list = make_partitions(DATASET, k)
+
+    # Generate embeddings for each partition
+    partition_embeddings = []
+
+    for i in range(len(partition_list)):
+        emb = get_graph_embedding(partition_list[i])
+        partition_embeddings.append(emb)
+        index.add(emb.cpu())
+
+    # Sample query
+    # Generate a query graph from Partition "parition_num", so we know it will always be an exact match
+    Gq, Gpos, Gneg = generate_triplets(partition_list[partition_num])
+    print("Number of nodes in Gq:", Gq.num_nodes)
+
+    # Time query resolution
+    start_time = time.time()
+
+    # Generate query embedding
+    zq = get_graph_embedding(Gq)
+
+    # Search for query embedding within FAISS index
+    D, I = index.search(zq.cpu(), k)
+
+    end_time = time.time()
+
+    print("Probable Partitions:", I)
+    print("Distances:", D)
+    print("Time:", (end_time - start_time) * 1000)
+
+    # time to do exact search
 
 
-# Make partitions
-k = 40
-partition_list = make_partitions(DATASET, k)
-
-
-# Generate embeddings for each partition
-partition_embeddings = []
-
-for i in range(len(partition_list)):
-    emb = get_graph_embedding(partition_list[i])
-    partition_embeddings.append(emb)
-    index.add(emb.cpu())
-
-
-# Sample query
-# Generate a query graph from Partition 0, so we know it will always be an exact match
-Gq, Gpos, Gneg = generate_triplets(partition_list[13])
-print("Number of nodes in Gq:", Gq.num_nodes)
-
-# Time query resolution
-start_time = time.time()
-
-# Generate query embedding
-zq = get_graph_embedding(Gq)
-
-# Search for query embedding within FAISS index
-D, I = index.search(zq.cpu(), k)
-
-end_time = time.time()
-
-print("Probable Partitions:", I)
-print("Distances:", D)
-print("Time:", (end_time - start_time) * 1000)
+if __name__ == "__main__":
+    main()
