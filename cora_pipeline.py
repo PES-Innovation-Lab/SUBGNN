@@ -1,13 +1,18 @@
-# TODO: Clean up functions
+# TODO:
+# Add VF2/3 to the pipeline
+# Clean up functions
 
 # Imports
 
+import sys
 import time
 
 import faiss
+import networkx as nx
 import pymetis
 import torch
 import torch.nn.functional as F
+import vf3py
 from torch.nn import Dropout, LeakyReLU, Linear, ReLU, Sequential
 from torch_geometric.datasets import CoraFull
 from torch_geometric.nn import GINConv, global_mean_pool
@@ -187,7 +192,7 @@ def main():
     partition_num = 0
 
     if len(args) == 1:
-        partition_num = int(args[1])
+        partition_num = int(args[0])
     elif len(args) > 1:
         print("Wrong Usage: python3 cora_pipeline.py <Partition Number>")
 
@@ -207,26 +212,69 @@ def main():
         index.add(emb.cpu())
 
     # Sample query
-    # Generate a query graph from Partition "parition_num", so we know it will always be an exact match
+    # Generate a query graph from Partition "partition_num", so we know it will always be an exact match
     Gq, Gpos, Gneg = generate_triplets(partition_list[partition_num])
-    print("Number of nodes in Gq:", Gq.num_nodes)
-
-    # Time query resolution
-    start_time = time.time()
-
     # Generate query embedding
+    model_start_time = time.time()
     zq = get_graph_embedding(Gq)
+    model_end_time = time.time()
 
     # Search for query embedding within FAISS index
+    faiss_start_time = time.time()
     D, I = index.search(zq.cpu(), k)
+    faiss_end_time = time.time()
 
-    end_time = time.time()
+    model_time = (model_end_time - model_start_time) * 1000
+    faiss_time = (faiss_end_time - faiss_start_time) * 1000
 
-    print("Probable Partitions:", I)
-    print("Distances:", D)
-    print("Time:", (end_time - start_time) * 1000)
+    # print("Probable Partitions:", I)
+    # print("Distances:", D)
 
-    # time to do exact search
+    most_prob = I[0][0]
+
+    Gt = to_networkx(partition_list[most_prob])
+    Gpos = to_networkx(Gpos)
+    query_nodes = Gq.num_nodes
+    Gq = to_networkx(Gq)
+    d = to_networkx(DATASET)
+
+    print("\n\nRunning Model + FAISS...")
+    print("=" * 80)
+
+    print("Number of query nodes:", query_nodes)
+
+    print("Most Probable Partition:", most_prob)
+
+    total_time = model_time + faiss_time
+
+    print("Model Time:", model_time)
+    print("FAISS Time:", faiss_time)
+    print("Total Time:", total_time)
+
+    print(f"\n\nRunning VF3 on Partition {most_prob}...")
+    print("=" * 80)
+
+    vf3_start_time = time.time()
+    vf3_is_subgraph = vf3py.has_subgraph(Gq, Gt)
+    print(f"VF3 Result: {vf3_is_subgraph}")
+    vf3_isomorphisms = vf3py.get_subgraph_isomorphisms(Gq, Gt)
+    vf3_end_time = time.time()
+    vf3_time = (vf3_end_time - vf3_start_time) * 1000
+    print(f"VF3 Time: {vf3_time}")
+    print(f"VF3 Mapping: {vf3_isomorphisms[0]}")
+
+    print(f"\n\nRunning VF2 on Partition {most_prob}...")
+    print("=" * 80)
+
+    vf2_start_time = time.time()
+    matcher = nx.algorithms.isomorphism.GraphMatcher(Gt, Gq)
+    vf2_is_subgraph = matcher.subgraph_is_isomorphic()
+    print(f"VF2 Result: {vf2_is_subgraph}")
+    vf2_isomorphisms = matcher.subgraph_isomorphisms_iter()
+    vf2_end_time = time.time()
+    vf2_time = (vf2_end_time - vf2_start_time) * 1000
+    print(f"VF2 Time: {vf2_time}")
+    print(f"VF2 Mapping: {vf2_isomorphisms[0]}")
 
 
 if __name__ == "__main__":
