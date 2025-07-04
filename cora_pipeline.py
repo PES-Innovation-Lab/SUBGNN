@@ -184,7 +184,7 @@ def make_partitions(dataset, num_parts):
 def main():
 
     args = sys.argv[1:]
-    parition_num = 0
+    partition_num = 0
 
     if len(args) == 1:
         partition_num = int(args[1])
