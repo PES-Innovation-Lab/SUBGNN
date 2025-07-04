@@ -1,3 +1,3 @@
-# GRAIL
+# SUBGNN
 
-Graph based Index Learning
+Subgraph Matching using GNNs
