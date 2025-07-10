@@ -1,0 +1,6 @@
+[requires]
+pybind11/2.11.1
+
+[generators]
+CMakeDeps
+CMakeToolchain

@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: {package}
+Version: {version}
+Author: {author}
+{platforms_lines}
+Requires-Python: {python_versions}
+Summary: {project_summary}
+{project_urls}
+{readme_content}

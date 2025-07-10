@@ -1,0 +1,15 @@
+.vscode/*
+**/*egg-info/*
+
+CMakeUserPresets.json
+build/*
+**/build/*
+**/*.so
+
+**/*pyd
+docs/_build
+release_assemble/vf3_release/dist/
+release_assemble/vf3_release/win_dlldeps.json
+release_assemble/vf3_release/win_dlls/*
+release_assemble/vf3_release/vf3py/*.dll
+**/__pycache__/*

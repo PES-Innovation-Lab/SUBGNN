@@ -1,0 +1,3 @@
+[submodule "release_assemble/tests/chemscripts"]
+	path = release_assemble/tests/chemscripts
+	url = https://gitlab.com/knvvv/chemscripts.git
