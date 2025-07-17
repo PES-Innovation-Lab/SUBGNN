@@ -6,13 +6,18 @@ def main():
     print("Getting Mappings with start_from_vertex")
     print("=" * 40)
     
-    pattern_file = "pattern1"
-    target_file = "target1"
+    pattern_file = "../query/query_part_1.csv"
+    target_file = "../target/target_part_1.csv"
+
+    # pattern_file = "pattern1"
+    # target_file = "target1"
 
     print("\nMethod 2: Using GlasgowSubgraphSolver class")
     solver = GlasgowSubgraphSolver()
 
-    test_vertices=[1000,1032,1582]
+    test_vertices= [909]
+
+    # test_vertices= [1000,1032,1582]
 
     for start_vertex in test_vertices:
         

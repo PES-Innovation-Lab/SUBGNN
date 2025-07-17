@@ -17,7 +17,7 @@ Basic usage:
     print(f"Pattern vertex 0 maps to target vertex {mapping[0]}")
 """
 
-from .glasgow_subgraph_solver import (
+from ..glasgow_subgraph_solver import (
     GlasgowSubgraphSolver,
     solve_subgraph_isomorphism,
     count_subgraph_isomorphisms,

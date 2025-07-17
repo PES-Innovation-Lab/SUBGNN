@@ -7,6 +7,7 @@
 import random
 import sys
 import time
+import sys
 
 import faiss
 import networkx as nx
@@ -21,6 +22,9 @@ from torch_geometric.utils import degree, k_hop_subgraph, subgraph, to_networkx,
 import vf3py
 
 import matplotlib.pyplot as plt
+
+sys.path.append("./modified_glasgow/")
+from glasgow_subgraph_solver import get_first_mapping, GlasgowSubgraphSolver
 
 # Load dataset
 
@@ -96,8 +100,7 @@ def generate_triplets(data, k=6, q_size=80):
         # Original logic for full dataset
         anchor_node = torch.randint(0, data.num_nodes, (1,)).item()
         subset_pos, _, _, _ = k_hop_subgraph(
-            anchor_node, k, data.edge_index, relabel_nodes=True
-        )
+            anchor_node, k, data.edge_index, relabel_nodes=True)
 
         Gpos = data.subgraph(subset_pos)
 
@@ -111,8 +114,7 @@ def generate_triplets(data, k=6, q_size=80):
             attempts += 1
 
         subset_neg, _, _, _ = k_hop_subgraph(
-            neg_anchor, k, data.edge_index, relabel_nodes=True
-        )
+            neg_anchor, k, data.edge_index, relabel_nodes=True)
         Gneg = data.subgraph(subset_neg)
 
     return Gq, Gpos, Gneg
@@ -143,9 +145,7 @@ class SubgraphEncoder(torch.nn.Module):
 
 device = torch.device("cpu")
 
-encoder = SubgraphEncoder(
-    in_neurons=DATASET.num_features, hidden_neurons=64, output_neurons=16
-)
+encoder = SubgraphEncoder(in_neurons=DATASET.num_features, hidden_neurons=64, output_neurons=16)
 optimizer = torch.optim.Adam(encoder.parameters(), lr=1e-3)
 
 encoder = encoder.to(device)
@@ -179,8 +179,7 @@ def train(encoder, dataset, epochs, steps_per_epoch, device):
             zneg = encoder(Gneg.x, Gneg.edge_index, Gneg.batch)
 
             loss = triplet_loss(
-                zq.unsqueeze(0), zpos.unsqueeze(0), zneg.unsqueeze(0), alpha=1.0
-            )
+                zq.unsqueeze(0), zpos.unsqueeze(0), zneg.unsqueeze(0), alpha=1.0)
 
             loss.backward()
             optimizer.step()
@@ -195,7 +194,6 @@ def train(encoder, dataset, epochs, steps_per_epoch, device):
 
 # Uncomment to re-train
 # train(encoder, DATASET, epochs, steps_per_epoch, device)
-
 
 # Load saved model
 encoder.load_state_dict(torch.load("cora-model.pth", map_location=device))
@@ -262,15 +260,66 @@ def to_networkx_with_original_ids(data):
     return G
 
 
+def write_graph_to_csv_format(G, filename):
+    """
+    Write a NetworkX graph to CSV format for Glasgow solver.
+    CSV format: edge_list with two columns (source, target)
+    """
+    import csv
+    
+    # Create a mapping from node IDs to sequential integers starting from 0
+    nodes = sorted(G.nodes())
+    node_to_index = {node: i for i, node in enumerate(nodes)}
+    
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header
+        writer.writerow(['source', 'target'])
+        
+        # Write edges using mapped indices
+        for edge in G.edges():
+            source_idx = node_to_index[edge[0]]
+            target_idx = node_to_index[edge[1]]
+            writer.writerow([source_idx, target_idx])
+    
+    return node_to_index  # Return mapping for later use
+
+
+# def write_graph_to_lad_format(G, filename):
+#     """
+#     Write a NetworkX graph to LAD format for Glasgow solver.
+#     LAD format:
+#     - First line: number of vertices
+#     - Following lines: adjacency list for each vertex
+#     """
+#     with open(filename, 'w') as f:
+#         # Number of vertices
+#         f.write(f"{G.number_of_nodes()}\n")
+        
+#         # Create a mapping from node IDs to sequential integers starting from 0
+#         nodes = sorted(G.nodes())
+#         node_to_index = {node: i for i, node in enumerate(nodes)}
+        
+#         # Write adjacency list for each vertex
+#         for node in nodes:
+#             neighbors = sorted([node_to_index[neighbor] for neighbor in G.neighbors(node)])
+#             f.write(f"{len(neighbors)}")
+#             for neighbor in neighbors:
+#                 f.write(f" {neighbor}")
+#             f.write("\n")
+    
+#     return node_to_index  # Return mapping for later use
+
+
 def main():
 
-    # args = sys.argv[1:]
-    # partition_num = 0
-    #
-    # if len(args) == 1:
-    #     partition_num = int(args[0])
-    # elif len(args) > 1:
-    #     print("Wrong Usage: python3 cora_pipeline.py <Partition Number>")
+    args = sys.argv[1:]
+    partition_num = 0
+    
+    if len(args) == 1:
+        partition_num = int(args[0])
+    elif len(args) > 1:
+        print("Wrong Usage: python3 cora_pipeline.py <Partition Number>")
 
     # Build vector index using FAISS
     index = faiss.IndexFlatL2(16)
@@ -289,65 +338,100 @@ def main():
                 
     # Sample query
     # Generate a query graph from Partition "partition_num", so we know it will always be an exact match
-    Gq, Gpos, Gneg = generate_triplets(partition_list[0])
+    Gq, Gpos, Gneg = generate_triplets(partition_list[partition_num])
     while(Gq.num_nodes < 50):
-        Gq, Gpos, Gneg = generate_triplets(partition_list[0])
+        Gq, Gpos, Gneg = generate_triplets(partition_list[partition_num])
     # Generate query embedding
-    # model_start_time = time.time()
+    model_start_time = time.time()
     zq = get_graph_embedding(Gq)
-    # model_end_time = time.time(
+    model_end_time = time.time()
     # Search for query embedding within FAISS index
-    # faiss_start_time = time.time()
+    faiss_start_time = time.time()
     D, I = index.search(zq.cpu(), k)
-    # faiss_end_time = time.time(
-    # model_time = (model_end_time - model_start_time) * 1000
-    # faiss_time = (faiss_end_time - faiss_start_time) * 100
-    # print("Probable Partitions:", I)
-    # print("Distances:", D[0])
+    faiss_end_time = time.time()
+    model_time = (model_end_time - model_start_time) * 1000
+    faiss_time = (faiss_end_time - faiss_start_time) * 100
+    print("Probable Partitions:", I)
+    print("Distances:", D[0])
     most_prob=I[0][0]
 
     # Create NetworkX graphs with original node IDs
-    Gt = to_networkx_with_original_ids(partition_list[most_prob])
+    Gu = to_networkx_with_original_ids(partition_list[most_prob])   #chosen partition
     Gq = to_networkx_with_original_ids(Gq)
     
     # Display node IDs
     # print("Gq node IDs (using original IDs):", list(Gq.nodes()))
     # print("Gt node IDs (using original IDs):", list(Gt.nodes()))
-    
+
+    vf3_start_time = time.time()
+    vf3_is_subgraph = vf3py.has_subgraph(Gq, Gu)
+    vf3_end_time = time.time()
+    print(f"VF3 confirms that Gq is present in Gu in {(vf3_end_time - vf3_start_time)*1000:.2f} ms")
+
+    ##########################################################
+    # NEW SECTION FROM HERE!!!!
+    ##########################################################
+
     # For VF3, we'll use the NetworkX graphs with original node IDs
-
-    # print("\n\nRunning Model + FAISS...")
-    # print("=" * 80)
-    #
-    # print("Number of query nodes:", query_nodes
-    # print("Most Probable Partition:", most_prob
-    # print("Probable Partitions:", I)
-    # print("Distances:", D[0]
-    # print(f"Input Partition: {partition_num}\t\tMost Probable: {most_prob}\t\tSecond: {second_prob}\t\tDistances: {D[0][0]}\t\tNodes: {query_nodes}"
-    # prinf"Errors: {count}"
-        # total_time = model_time + faiss_time
-        #
-        # print("Model Time:", model_time)
-        # print("FAISS Time:", faiss_time)
-        # print("Total Time:", total_time)
-
-
-    # vf3_start_time = time.time()
-    # vf3_is_subgraph = vf3py.has_subgraph(Gq, Gt)
-    # vf3_is_subgraph = vf3py.has_subgraph(Gq, d)
 
     # Choose a random node from Gq for start_target_node_id
     random_gq_node = int(random.choice(list(Gq.nodes())))
-    print(f"random Gq node = start_target_node_id: {random_gq_node}")
-    
-    vf3_isomorphisms = vf3py.get_subgraph_isomorphisms(Gq, Gt, start_target_node_id=random_gq_node)
-    # vf3_end_time = time.time()
-    # vf3_time = (vf3_end_time - vf3_start_time) * 1000
-    # print(f"VF3 Result: {vf3_is_subgraph}")
-    # print(f"VF3 Time: {vf3_time}")
-    
-    print(f"VF3 Mapping: {vf3_isomorphisms[0]}")
+    print(f"Random Gq node = start_target_node_id: {random_gq_node}")
 
+    # Now test with Glasgow Subgraph Solver
+    print(f"\n\nRunning Glasgow Subgraph Solver on Partition {most_prob}...")
+    print("=" * 80)
+    
+    # Convert graphs to CSV format for Glasgow solver
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as query_file:
+        query_mapping = write_graph_to_csv_format(Gq, query_file.name)
+        query_filename = query_file.name
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as target_file:
+        target_mapping = write_graph_to_csv_format(Gu, target_file.name)
+        target_filename = target_file.name
+    
+    try:
+        # Convert the CSV files and use custom function
+        solver = GlasgowSubgraphSolver()
+        
+        # Run to find the match using CSV format files
+        glasgow_start_time = time.time()
+        result = solver.solve(query_filename, target_filename, start_from_vertex=random_gq_node)
+        glasgow_end_time = time.time()
+        glasgow_time = (glasgow_end_time - glasgow_start_time) * 1000
+        
+        print(f"Glasgow Result: {result.get('success', False)}")
+        print(f"Glasgow Time: {glasgow_time:.2f} ms")
+        
+        if result.get('success', False) and result.get('mappings'):
+            glasgow_mapping = result['mappings'][0] if result['mappings'] else None
+            if glasgow_mapping:
+                print(f"Glasgow Mapping (CSV indices): {glasgow_mapping}")
+                
+                # Convert CSV mapping back to original node IDs
+                reverse_query_mapping = {v: k for k, v in query_mapping.items()}
+                reverse_target_mapping = {v: k for k, v in target_mapping.items()}
+                
+                original_mapping = {}
+                for query_csv_idx, target_csv_idx in glasgow_mapping.items():
+                    query_original = reverse_query_mapping[int(query_csv_idx)]
+                    target_original = reverse_target_mapping[int(target_csv_idx)]
+                    original_mapping[query_original] = target_original
+                
+                print(f"Glasgow Mapping (Original node IDs): {original_mapping}")
+    
+    except Exception as e:
+        print(f"Glasgow solver error: {e}")
+    
+    finally:
+        import os
+        try:
+            os.unlink(query_filename)
+            os.unlink(target_filename)
+        except:
+            pass
 
 
 if __name__ == "__main__":
