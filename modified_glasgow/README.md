@@ -13,6 +13,10 @@ Steps:
 Compiling
 ---------
 
+The build file is omitted from the repository, so you will need to generate it yourself. The
+`CMakeLists.txt` file is set up to build the Glasgow Subgraph Solver as a C++ executable named
+`glasgow_subgraph_solver`. It also includes a Python wrapper for convenience
+
 To build, you will need a C++20 compiler, such as GCC 10.3, as well as Boost (use
 ``libboost-all-dev`` on Ubuntu).
 

@@ -8,6 +8,8 @@ General plan
 layout
 """
 
+#LEGACY CODE
+
 # make sure to have these modules
 # pip install -q torch-geometric
 # pip install python-louvain
