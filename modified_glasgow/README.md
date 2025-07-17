@@ -34,4 +34,4 @@ chmod +x glasgow_subgraph_solver.py
 
 ### Basic Usage
 
-Check `start_from_vertex_example.py` and `example_usage.py`
+Check `start_from_vertex_example.py` and `./pythonTests/example_usage.py`
