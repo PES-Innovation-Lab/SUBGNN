@@ -28,5 +28,5 @@ chmod +x glasgow_subgraph_solver
 ```bash
 python start_form_vertex_example.py
 ```
-
+## Main file is `test-pipeline.py`
 ## Can check `modified_glasgow/pythonTests` for extra options and how to use them.
