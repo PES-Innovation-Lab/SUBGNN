@@ -110,10 +110,19 @@ def generate_single_partition_query(
         kwargs["device"],
     )
     min_nodes, max_nodes = kwargs["min_nodes"], kwargs["max_nodes"]
+    anchor_coarse_idx = kwargs.get("anchor_coarse_idx", None)
 
     Gq = None
+    valid_indices = list(range(len(fine_graphs)))
+    if anchor_coarse_idx is not None:
+        valid_indices = [
+            idx for idx in valid_indices if fine_to_coarse_map[idx] == anchor_coarse_idx
+        ]
+
     while Gq is None:
-        true_fine_idx = random.randint(0, len(fine_graphs) - 1)
+        if not valid_indices:
+            raise RuntimeError("No fine partitions in anchor coarse partition.")
+        true_fine_idx = random.choice(valid_indices)
         anchor_partition = fine_graphs[true_fine_idx]
         local_nodes = _extract_fragment(anchor_partition, max_nodes)
 
@@ -146,17 +155,24 @@ def generate_multi_fine_partition_query(
         kwargs["min_nodes"],
         kwargs["max_nodes"],
     )
+    anchor_coarse_idx = kwargs.get("anchor_coarse_idx", None)
 
     for _ in range(100):  # Try up to 100 times
-        start_fine_idx = random.choice(list(fine_part_nodes_map.keys()))
+        candidate_starts = (
+            [idx for idx, c in fine_to_coarse_map.items() if c == anchor_coarse_idx]
+            if anchor_coarse_idx is not None
+            else list(fine_part_nodes_map.keys())
+        )
+        if not candidate_starts:
+            raise RuntimeError("No valid fine partitions in anchor coarse partition.")
+
+        start_fine_idx = random.choice(candidate_starts)
         true_coarse_idx = fine_to_coarse_map[start_fine_idx]
 
-        # Find all "sibling" fine partitions within the same coarse one
         siblings = [
             idx for idx, c_idx in fine_to_coarse_map.items() if c_idx == true_coarse_idx
         ]
 
-        # Find a connected set of sibling partitions
         q_fine_indices, queue, visited = (
             [start_fine_idx],
             [start_fine_idx],
@@ -180,7 +196,6 @@ def generate_multi_fine_partition_query(
         if len(q_fine_indices) < num_frags:
             continue
 
-        # Extract fragments from each selected fine partition
         nodes_per_frag = max_nodes // num_frags
         all_query_nodes = []
         for fine_idx in q_fine_indices:
@@ -194,7 +209,6 @@ def generate_multi_fine_partition_query(
             kwargs["original_data"], all_query_nodes, min_nodes, device
         )
         if Gq:
-            # The "ground truth" graph for visualization is the combination of all selected fine partitions
             stitched_nodes = [
                 node for idx in q_fine_indices for node in fine_part_nodes_map[idx]
             ]
@@ -231,23 +245,28 @@ def generate_multi_coarse_partition_query(
         kwargs["device"],
     )
     min_nodes, max_nodes = kwargs["min_nodes"], kwargs["max_nodes"]
+    anchor_coarse_idx = kwargs.get("anchor_coarse_idx", None)
 
     if coarse_part_graph.number_of_edges() == 0:
-        raise RuntimeError(
-            "Coarse graph has no edges, cannot generate multi-coarse query."
-        )
+        raise RuntimeError("Coarse graph has no edges, cannot generate multi-coarse query.")
 
-    # Create a map from coarse index to its constituent fine indices
     coarse_to_fine_map = defaultdict(list)
     for f_idx, c_idx in fine_to_coarse_map.items():
         coarse_to_fine_map[c_idx].append(f_idx)
 
-    # Try different configurations (num_fragments, min_coarse_partitions) to find a valid query
     for num_frags, min_coarse_parts in MULTI_COARSE_CONFIGS:
-        possible_start_edges = list(coarse_part_graph.edges())
-        random.shuffle(possible_start_edges)
+        possible_edges = list(coarse_part_graph.edges())
+        if anchor_coarse_idx is not None:
+            possible_edges = [
+                (u, v)
+                for (u, v) in possible_edges
+                if u == anchor_coarse_idx or v == anchor_coarse_idx
+            ]
+            if not possible_edges:
+                continue
+        random.shuffle(possible_edges)
 
-        for c_idx1, c_idx2 in possible_start_edges:
+        for c_idx1, c_idx2 in possible_edges:
             fine_parts_in_c1 = coarse_to_fine_map.get(c_idx1, [])
             fine_parts_in_c2 = coarse_to_fine_map.get(c_idx2, [])
             all_fine_pairs = list(itertools.product(fine_parts_in_c1, fine_parts_in_c2))
@@ -259,13 +278,10 @@ def generate_multi_coarse_partition_query(
                 ):
                     continue
 
-                # We found a valid "bridge" between two coarse partitions. Now expand from there.
                 q_fine_indices, queue, visited = [f1, f2], [f1, f2], {f1, f2}
                 while queue and len(q_fine_indices) < num_frags:
                     current_fine_idx = queue.pop(0)
                     current_c_idx = fine_to_coarse_map[current_fine_idx]
-
-                    # Look for neighbors in adjacent *coarse* partitions
                     coarse_neighbors_and_self = list(
                         coarse_part_graph.neighbors(current_c_idx)
                     ) + [current_c_idx]
@@ -294,10 +310,13 @@ def generate_multi_coarse_partition_query(
                 true_coarse_indices = {
                     fine_to_coarse_map[f_idx] for f_idx in q_fine_indices
                 }
+
+                if anchor_coarse_idx is not None and anchor_coarse_idx not in true_coarse_indices:
+                    continue
+
                 if len(true_coarse_indices) < min_coarse_parts:
                     continue
 
-                # We have enough fragments spanning enough coarse partitions. Finalize the query.
                 nodes_per_frag = max_nodes // num_frags
                 all_query_nodes = []
                 for fine_idx in q_fine_indices:
