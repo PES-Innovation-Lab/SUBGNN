@@ -29,6 +29,7 @@ from src.query_generator import (
 )
 from src.search_executor import search
 from src.utils import feature_to_label
+from src.utils import plot_unified_results
 
 
 def main():
@@ -107,7 +108,7 @@ def main():
         "min_nodes": SINGLE_PARTITION_QUERY_MIN_NODES,
         "max_nodes": SINGLE_PARTITION_QUERY_MAX_NODES,
     }
-    search(
+    result1 = search(
         "Single Partition Query",
         generate_single_partition_query,
         single_query_params,
@@ -115,6 +116,17 @@ def main():
         encoder,
         DEVICE,
     )
+    if result1["success"]:
+        plot_unified_results(
+            result1["Gq"],
+            result1["G_truth_vis"],
+            result1["q_global_nodes"],
+            result1["G_predicted"],
+            result1["true_fine_indices"],
+            result1["predicted_fine_idx"],
+            result1["experiment_name"],
+            fine_part_nodes_map=context["fine_part_nodes_map"],
+        )
 
     # Experiment 2: Multi-Fine Partition Query
     multi_fine_params = {
@@ -123,7 +135,7 @@ def main():
         "min_nodes": MULTI_FINE_QUERY_MIN_NODES,
         "max_nodes": MULTI_FINE_QUERY_MAX_NODES,
     }
-    search(
+    result2 = search(
         "Multi-Fine Partition Query",
         generate_multi_fine_partition_query,
         multi_fine_params,
@@ -131,6 +143,17 @@ def main():
         encoder,
         DEVICE,
     )
+    if result2["success"]:
+        plot_unified_results(
+            result2["Gq"],
+            result2["G_truth_vis"],
+            result2["q_global_nodes"],
+            result2["G_predicted"],
+            result2["true_fine_indices"],
+            result2["predicted_fine_idx"],
+            result2["experiment_name"],
+            fine_part_nodes_map=context["fine_part_nodes_map"],
+        )
 
     # Experiment 3: Multi-Coarse Partition Query
     multi_coarse_params = {
@@ -138,7 +161,7 @@ def main():
         "min_nodes": MULTI_COARSE_QUERY_MIN_NODES,
         "max_nodes": MULTI_COARSE_QUERY_MAX_NODES,
     }
-    search(
+    result3 = search(
         "Multi-Coarse Partition Query",
         generate_multi_coarse_partition_query,
         multi_coarse_params,
@@ -146,6 +169,17 @@ def main():
         encoder,
         DEVICE,
     )
+    if result3["success"]:
+        plot_unified_results(
+            result3["Gq"],
+            result3["G_truth_vis"],
+            result3["q_global_nodes"],
+            result3["G_predicted"],
+            result3["true_fine_indices"],
+            result3["predicted_fine_idx"],
+            result3["experiment_name"],
+            fine_part_nodes_map=context["fine_part_nodes_map"],
+        )
 
     print("\nAll experiments completed.")
 

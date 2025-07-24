@@ -148,7 +148,7 @@ def search(
     print("\n" + "#" * 70 + f"\n###   STARTING EXPERIMENT: {name}   ###\n" + "#" * 70)
 
     try:
-        Gq, _, q_global_nodes, true_fine_indices, true_coarse_indices = query_generator(
+        Gq, G_truth_vis, q_global_nodes, true_fine_indices, true_coarse_indices = query_generator(
             **query_params
         )
     except (RuntimeError, IndexError) as e:
@@ -297,5 +297,8 @@ def search(
         "predicted_fine_idx": predicted_fine_global_idx,
         "true_fine_indices": true_fine_indices,
         "true_coarse_indices": list(true_coarse_indices),
+        "Gq": Gq,
+        "G_truth_vis": G_truth_vis,
+        "G_predicted": context["fine_graphs"][predicted_fine_global_idx],
+        "q_global_nodes": q_global_nodes,
     }
-
